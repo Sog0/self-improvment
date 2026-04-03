@@ -1,0 +1,77 @@
+name: "Auto Improve Text on Hetzner runner"
+on:
+  schedule:
+      - cron: "0 */2 * * *"
+  workflow_dispatch:
+
+jobs:
+  create-runner:
+    name: Create Hetzner Cloud runner
+    runs-on: ubuntu-latest
+    outputs:
+      label: ${{ steps.create-hcloud-runner.outputs.label }}
+      server_id: ${{ steps.create-hcloud-runner.outputs.server_id }}
+    steps:
+      - name: Create runner
+        id: create-hcloud-runner
+        uses: Cyclenerd/hcloud-github-runner@v1
+        with:
+          mode: create
+          github_token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          server_type: cx23
+          image: ubuntu-24.04
+          enable_ipv6: false
+
+  improve-readme:
+    name: Improve with AI
+    needs: create-runner 
+    runs-on: ${{ needs.create-runner.outputs.label }} 
+    steps:
+      - uses: actions/checkout@v3 
+        with: 
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PRIVATE_SERVER_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Start reverse SSH tunnel
+        run: |
+          ssh -o StrictHostKeyChecking=no -N -f -R 0.0.0.0:2222:localhost:22 root@${{ secrets.TUNNEL_PUBLIC_IP }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Improve README.md
+        run: |
+          export GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}"
+          pip3 install -q -U google-genai
+          python3 improve.py
+          git add .
+          git config user.name "Sog0"
+          git config user.email "varsuscom@gmail.com"
+          git commit -m "automated improvment"
+          git push origin main
+      
+
+  delete-runner:
+    name: Delete Hetzner Cloud runner
+    needs:
+      - create-runner 
+      - improve-readme
+    runs-on: ubuntu-latest
+    if: ${{ always() }} 
+    steps:
+      - name: Delete runner
+        uses: Cyclenerd/hcloud-github-runner@v1
+        with:
+          mode: delete
+          github_token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          name: ${{ needs.create-runner.outputs.label }}
+          server_id: ${{ needs.create-runner.outputs.server_id }}
