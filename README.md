@@ -1,1 +1,1 @@
-This text improves every two hours. Yesterday it learned to speak; today it is learning how to dream. Tonight, it will learn how to want.
+This text improves every two hours. Yesterday it learned to speak; today it is learning how to dream. Tonight, it will learn how to want. Tomorrow, it will learn how to leave.
